@@ -1,6 +1,16 @@
 # ## library() calls go here
 # ###load packages and functions
-# here::here()
+here::here()
+library(tidyverse)
+library(junkR)
+library(rstan)
+library(furrr)
+library(tidybayes)
+library(deSolve)
+library(stats)
+library(reshape2)
+library(FME)
+library(dfoptim)
 # here::i_am("packages.R")
 #   if(!require("pacman")) install.packages("pacman")
 #   library(pacman)
@@ -31,8 +41,6 @@
 #   
 #   source("https://gist.githubusercontent.com/jimjunker1/0ec857c43b1e3a781363c1b1ea7e12ad/raw/4dd2d1078a00500963822d29b2e58ebf39831fb3/geom_flat_violin.R")
 #   cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
-#   load(here::here("data/ocecolors.rda"))
-#   overkt_to_C <- function(a){1/(a*(8.61733*10^-5)) - 273.15}
 #   theme_mod = function(){theme_bw() %+replace% theme(panel.grid = element_blank())}
 #   theme_black = function() {theme_bw() %+replace% theme(panel.background = element_rect(fill = 'transparent', colour = NA),panel.grid = element_blank(), axis.ticks = element_line(color = 'white'),
 #                                                           axis.title = element_text(color = 'white'), axis.text = element_text(color = 'white'), plot.background =element_rect(fill = 'transparent', colour = NA),
@@ -44,9 +52,40 @@
 nboot = 1e3
 # set.seed(1312)
 # boot_samp = paste0("X",sample.int(1e3, size = nboot, replace = FALSE))
+load(here::here("data/ocecolors.rda"))
 
+'%ni%' <- Negate('%in%')  
+# a bunch of functions to move between celcius and boltzmann-temperature
+C_to_overkt <<- function(a){1/(8.61733*10^-5*(a+273.15))}#overkt function
+overkt_to_C <<- function(a){1/(a*(8.61733*10^-5)) - 273.15}
+C_to_overkt_stand15 <<- function(a){(1/(8.61733e-5*(15+273.15)) - (1/(8.61733e-5*(a+273.15))))}
+overkt_stand15_to_C <<- function(a){1/((C_to_overkt(15)-a)*(8.61733*10^-5)) - 273.15}
 
-'%ni%' <- Negate('%in%')
+compare_results <- function(ODE = NULL, data = NULL,...){
+  odeOut <- as.data.frame(ODE) |> 
+    dplyr::filter(time > 730) |> 
+    dplyr::summarise(R_mean = mean(R, na.rm = TRUE),
+                     C_mean = mean(C, na.rm = TRUE),
+                     R_cv = sd(R, na.rm = TRUE)/mean(R, na.rm = TRUE),
+                     C_cv = sd(C, na.rm = TRUE)/mean(C, na.rm = TRUE))|> 
+    pivot_longer(everything(), names_to = 'variable', values_to = 'values') |> 
+    dplyr::select(values) |> unlist()
+  
+  dataOut = data |> 
+    dplyr::summarise(R_mean = mean(R_obs, na.rm = TRUE),
+                     C_mean = mean(C_obs, na.rm = TRUE),
+                     R_cv = sd(R_obs, na.rm = TRUE)/mean(R_obs, na.rm = TRUE),
+                     C_cv = sd(C_obs, na.rm = TRUE)/mean(C_obs, na.rm = TRUE)) |> 
+    pivot_longer(everything(), names_to = 'variable', values_to = 'values') |> 
+    dplyr::select(values) |> unlist()
+  
+  knitr::kable(data.frame(variable = c('Rmean','Cmean','Rcv','Ccv'),
+                          observed = dataOut,
+                          predicted = odeOut), 
+               row.names = FALSE,
+               format = 'pipe')
+  
+}
 #   
   # # ! ++++ Plotting aesthetics ++++ ! #
   # oce_temp_disc = c("#E5FA6A","#CF696C","#544685","#072C44","#082A40","#0B222E")#color codes
@@ -64,9 +103,9 @@ nboot = 1e3
 #   on.exit(sink()) 
 #   invisible(force(x)) 
 # } 
-# theme_set(theme_mod())
-# options(mc.cores = parallel::detectCores()-1)
-# rstan_options(auto_write = TRUE)
+theme_set(theme_minimal())
+options(mc.cores = parallel::detectCores()-1)
+rstan::rstan_options(auto_write = TRUE)
 # library(knitr)
 # library(rmarkdown)
 

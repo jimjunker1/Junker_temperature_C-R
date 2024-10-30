@@ -75,6 +75,8 @@ flux_full = map2(fluxes, diet_matrices, function(x,y){
     map2(x,y, function(a,b){
     pmap(list(a,b,res_effs), ~..1 %>% map(\(x) boot_flux_function(mat = ..2, losses = x, resource_effs_vct = ..3)))})})
 
-  return(flux_full = flux_full)
+  return(list(flux_full = flux_full,
+              NPE = NPE,
+              res_effs = res_effs))
 
 }
